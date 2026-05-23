@@ -467,15 +467,20 @@ const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyEI4dM3PBOST_m
 
 async function appendRow(sheetName, spreadsheetId, rowData) {
   if (!APPS_SCRIPT_URL) {
-    toast("⚠️ ยังไม่ได้ตั้งค่า Apps Script URL — ดูคู่มือด้านล่าง", "error");
+    toast("⚠️ ยังไม่ได้ตั้งค่า Apps Script URL", "error");
     return false;
   }
-  const resp = await fetch(APPS_SCRIPT_URL, {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ action: "append", spreadsheetId, sheetName, rowData }),
+  // ใช้ GET แทน POST เพื่อหลีกเลี่ยง CORS preflight
+  const params = new URLSearchParams({
+    action: "append",
+    spreadsheetId,
+    sheetName,
+    rowData: JSON.stringify(rowData),
   });
-  return resp.ok;
+  const resp = await fetch(`${APPS_SCRIPT_URL}?${params}`);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const json = await resp.json();
+  return json.status === "ok";
 }
 
 // ════════════════════════════════════════════════════════════
