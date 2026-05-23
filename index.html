@@ -446,8 +446,13 @@ async function fetchSheet(spreadsheetId, sheetName) {
   if (json.status !== "ok") throw new Error(json.msg || "Apps Script error");
   const rows = json.data;
   if (!rows || rows.length < 2) return [];
-  const headers = rows[0].map(h => String(h||"").trim());
-  return rows.slice(1).map(row => {
+  // ถ้า row 0 เป็น banner (col 1 ยาว + col 2 ว่าง) ให้ใช้ row 1 เป็น header แทน
+  const isBanner = rows[0] && String(rows[0][0]||"").length > 20 && !String(rows[0][1]||"").trim();
+  const headerRow = isBanner ? 1 : 0;
+  const dataStart = isBanner ? 2 : 1;
+  if (rows.length <= headerRow) return [];
+  const headers = rows[headerRow].map(h => String(h||"").trim());
+  return rows.slice(dataStart).map(row => {
     const obj = {};
     headers.forEach((h, i) => obj[h] = String(row[i] ?? "").trim());
     return obj;
@@ -616,7 +621,7 @@ function renderTx() {
   const filterType  = document.getElementById("tx-filter-type").value;
   const getAmount = t => +t['จำนวนเงิน (฿)'] || +t['จำนวนเงิน ( )'] || +t['จำนวนเงิน'] || +t.amount || 0;
   const getType   = t => t['ประเภท'] || t.type || '';
-  const getDate   = t => t['วันที่'] || t.date || '';
+  const getDate   = t => (t['วันที่'] || t.date || '').slice(0,10);
   const getNote   = t => t['รายละเอียด / Note']||t['รายละเอียด']||t.note||'';
   const getCat    = t => t['หมวดหมู่']||t.category_name||'';
   const getAcc    = t => t['บัญชี']||t.account_name||'';
