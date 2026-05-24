@@ -494,8 +494,8 @@ const fmtN = n => Number(n) ? Number(n).toLocaleString('th-TH', {minimumFraction
 
 function renderAll() {
   renderDashboard();
+  setTimeout(() => { buildBarChart(); buildDonutChart(); }, 400);
   renderTx();
-  renderTx2();
   renderAccounts();
   renderCreditCards();
   renderInstallments();
@@ -503,6 +503,18 @@ function renderAll() {
   renderInvestments();
   renderSavings();
   populateTxFilters();
+  // sync dashboard tx table
+  setTimeout(() => {
+    const src = document.getElementById("tx-body");
+    const dst = document.getElementById("tx-body-dash");
+    if(src && dst) dst.innerHTML = src.innerHTML;
+    // populate tx2 filter
+    const getDate = t => t['วันที่']||t.date||'';
+    const months = [...new Set(DB.transactions.map(t=>getDate(t).slice(0,7)).filter(Boolean))].sort().reverse();
+    const sel2 = document.getElementById("tx-filter-month2");
+    if(sel2) sel2.innerHTML = '<option value="">All months</option>'+months.map(m=>`<option value="${m}">${m}</option>`).join('');
+    renderTx2();
+  }, 100);
 }
 
 // ── Dashboard ─────────────────────────────────────────────────
@@ -581,8 +593,6 @@ function renderDashboard() {
         </tr>`;
       }).join('')}</tbody>
     </table>` : '<div style="padding:20px;text-align:center;color:var(--muted)">ยังไม่มีรายการ</div>';
-}
-  setTimeout(() => { buildBarChart(); buildDonutChart(); }, 300);
 }
 
 // ── Transactions ───────────────────────────────────────────────
@@ -960,9 +970,12 @@ function showPage(id) {
 //  STATUS
 // ════════════════════════════════════════════════════════════
 function setStatus(type, msg) {
-  const bar = document.getElementById("status-bar-dash");
-  const dotCls = type === "ok" ? "ok" : type === "loading" ? "loading" : "error";
-  bar.innerHTML = `<div class="status-bar"><div class="status-dot ${dotCls}"></div>${msg}</div>`;
+  const d = document.getElementById("status-dot");
+  const t = document.getElementById("status-text");
+  if(d) d.className = "dot " + type;
+  if(t) t.textContent = msg.length > 30 ? msg.slice(0,30)+"…" : msg;
+  const upd = document.getElementById("last-updated");
+  if(upd && type === "ok") upd.textContent = "ข้อมูล ณ " + new Date().toLocaleString("th-TH");
 }
 
 // ════════════════════════════════════════════════════════════
@@ -1088,32 +1101,10 @@ function renderTx2() {
   }).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">ไม่พบรายการ</td></tr>';
 }
 
-function setStatus(type, msg) {
-  const d=document.getElementById("status-dot");
-  const t=document.getElementById("status-text");
-  if(d) d.className="dot "+type;
-  if(t) t.textContent=msg.length>28?msg.slice(0,28)+"…":msg;
-}
+// setStatus defined above
 
 
-// sync dashboard tx table
-const _rTx = renderTx;
-function renderTx() {
-  _rTx();
-  const src = document.getElementById("tx-body");
-  const dst = document.getElementById("tx-body-dash");
-  if(src && dst) dst.innerHTML = src.innerHTML;
-}
-// sync tx2 filter options
-const _pop = populateTxFilters;
-function populateTxFilters() {
-  _pop();
-  const getDate = t => t['วันที่']||t.date||'';
-  const months = [...new Set(DB.transactions.map(t=>getDate(t).slice(0,7)).filter(Boolean))].sort().reverse();
-  const sel2 = document.getElementById("tx-filter-month2");
-  if(sel2) sel2.innerHTML = '<option value="">All months</option>'+months.map(m=>`<option value="${m}">${m}</option>`).join('');
-  renderTx2();
-}
+
 </script>
 </body>
 </html>
