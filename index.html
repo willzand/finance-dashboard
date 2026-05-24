@@ -631,7 +631,7 @@ function renderTx() {
   const getCat    = t => t['หมวดหมู่']||t.category_name||'';
   const getAcc    = t => t['บัญชี']||t.account_name||'';
 
-  let data = [...DB.transactions].sort((a,b)=>getDate(b).localeCompare(getDate(a)));
+  let data = [...DB.transactions].map((r,i)=>({...r,_idx:i})).sort((a,b)=>{const dc=getDate(b).localeCompare(getDate(a));return dc!==0?dc:b._idx-a._idx;});
   if (filterMonth) data = data.filter(t => getDate(t).startsWith(filterMonth));
   if (filterType)  data = data.filter(t => getType(t) === filterType);
 
