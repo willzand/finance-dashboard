@@ -831,19 +831,23 @@ const FORM_DEFS = {
       {key:"date",    label:"วันที่",         type:"date"},
       {key:"type",    label:"ประเภท",          type:"select", opts:["income","expense"]},
       {key:"amount",  label:"จำนวนเงิน (฿)",  type:"number"},
-      {key:"cat",     label:"หมวดหมู่",        type:"select", opts:() => DB.categories.map(c=>c['name_th']||c.name||'')},
-      {key:"acc",     label:"บัญชี",           type:"select", opts:() => DB.accounts.map(a=>a.bank_name||'')},
+      {key:"cat",     label:"หมวดหมู่",        type:"select", opts:() => DB.categories.map(c=>c['name_th']||c['หมวดหมู่']||'')},
+      {key:"acc",     label:"บัญชี",           type:"select", opts:() => DB.accounts.map(a=>a['bank_name']||a['ธนาคาร']||'')},
       {key:"note",    label:"รายละเอียด",      type:"text"},
       {key:"source",  label:"แหล่งข้อมูล",    type:"select", opts:["manual","import_csv","import_app"]},
     ],
-    build: (vals) => [
-      vals.date, vals.type, vals.amount,
-      DB.categories.find(c=>(c['name_th']||c.name)===vals.cat)?.category_id||vals.cat,
-      vals.cat,
-      DB.accounts.find(a=>a.bank_name===vals.acc)?.account_id||vals.acc,
-      vals.acc,
-      vals.note, vals.source||'manual', ''
-    ]
+    build: (vals) => {
+      // Transactions sheet columns:
+      // A=วันที่, B=ประเภท, C=จำนวนเงิน, D=หมวดหมู่(ชื่อ), E=category_id(auto),
+      // F=บัญชี(ชื่อ), G=account_id(auto), H=รายละเอียด, I=แหล่งข้อมูล, J=เดือน(auto)
+      const catName = vals.cat;
+      const accName = vals.acc;
+      const month   = vals.date ? vals.date.slice(0,7) : '';
+      return [vals.date, vals.type, vals.amount,
+        catName, '',       // D=ชื่อหมวด, E=category_id (Google Sheets คำนวณเอง)
+        accName, '',       // F=ชื่อบัญชี, G=account_id (Google Sheets คำนวณเอง)
+        vals.note, vals.source||'manual', month];
+    }
   },
   installment: {
     title: "เพิ่ม Installment",
