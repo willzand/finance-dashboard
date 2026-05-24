@@ -507,10 +507,10 @@ async function loadAll() {
     DB.accounts     = accData.filter(r => r.account_id && String(r.account_id).startsWith("ACC"));
     DB.categories   = catData.filter(r => r.category_id && r.category_id.startsWith("CAT"));
     DB.creditCards  = ccData.filter(r => r['รหัส'] && r['รหัส'].startsWith("CARD"));
-    DB.installments = instData.filter(r => r['รหัส'] && r['รหัส'].startsWith("INST"));
-    DB.recurring    = recData.filter(r => r['รหัส'] && r['รหัส'].startsWith("REC"));
-    DB.funds        = fundsData.filter(r => r.fund_id && r.fund_id.startsWith("FUND"));
-    DB.savings      = savData.filter(r => r.saving_id && r.saving_id.startsWith("SAV"));
+    DB.installments = instData.filter(r => (r["รหัส"]||"").startsWith("INST"));
+    DB.recurring    = recData.filter(r => (r["รหัส"]||"").startsWith("REC"));
+    DB.funds        = fundsData.filter(r => (r["รหัส"]||r.fund_id||"").startsWith("FUND"));
+    DB.savings      = savData.filter(r => (r["รหัส"]||r.saving_id||"").startsWith("SAV"));
     DB.fundTx       = ftxData;
 
     setStatus("ok", `อัปเดตล่าสุด ${new Date().toLocaleTimeString('th-TH')}`);
@@ -761,15 +761,15 @@ function renderRecurring() {
 function renderInvestments() {
   let tCost=0, tVal=0;
   const rows = DB.funds.map(f => {
-    const name = f.fund_name||f['ชื่อกองทุน']||'';
-    const type = f.fund_type||f['ประเภท']||'';
-    const units= +f.units_held||+f['จำนวนหน่วย']||+f['หน่วย (⚡auto)']||0;
-    const cost = +f.cost_per_unit||+f['ราคาซื้อเฉลี่ย']||+f['ต้นทุนเฉลี่ย (⚡auto)']||0;
-    const nav  = +f.current_nav||+f['NAV ล่าสุด (฿)']||+f['NAV ล่าสุด (🟡กรอก)']||0;
-    const val  = +f.current_value||+f['มูลค่าปัจจุบัน (฿)']||+(units*nav)||0;
-    const gain = +f.gain_loss||+f['กำไร/ขาดทุน (฿)']||0;
-    const costT= +f.cost_basis||+f['ต้นทุนรวม (฿)']||+(units*cost)||0;
-    const pct  = +f.gain_pct||+f['% กำไร/ขาดทุน']||0;
+    const name = f['ชื่อกองทุน']||f.fund_name||'';
+    const type = f['ประเภท']||f.fund_type||'';
+    const units= +f['หน่วย (⚡ auto)']||+f['หน่วย (⚡auto)']||+f['จำนวนหน่วย']||+f.units_held||0;
+    const cost = +f['ต้นทุนเฉลี่ย (⚡ auto)']||+f['ต้นทุนเฉลี่ย (⚡auto)']||+f['ราคาซื้อเฉลี่ย']||+f.cost_per_unit||0;
+    const nav  = +f['NAV ล่าสุด (🟡กรอก)']||+f['NAV ล่าสุด (฿)']||+f.current_nav||0;
+    const val  = +f['มูลค่าปัจจุบัน (฿)']||+f.current_value||+(units*nav)||0;
+    const gain = +f['กำไร/ขาดทุน (฿)']||+f.gain_loss||+(val-costT)||0;
+    const costT= +f['ต้นทุนรวม (฿)']||+f.cost_basis||+(units*cost)||0;
+    const pct  = +f['% กำไร/ขาดทุน']||+f.gain_pct||0;
     tCost += costT; tVal += val;
     if (!name) return '';
     const typeColor = type.includes('หุ้น') ? 'var(--red)' : type.includes('ตราสารหนี้') ? 'var(--accent2)' : 'var(--amber)';
@@ -799,12 +799,12 @@ function renderInvestments() {
 // ── Savings ───────────────────────────────────────────────────
 function renderSavings() {
   document.getElementById("sav-body").innerHTML = DB.savings.map(s => {
-    const name  = s.name||s['ชื่อ']||'';
-    const type  = s.type||s['ประเภท']||'';
-    const face  = +s.face_value||+s['มูลค่าหน้าสลาก (฿)']||0;
-    const rate  = +s.interest_rate||+s['ดอกเบี้ย % ต่อปี']||0;
-    const mat   = s.maturity_date||s['วันครบกำหนด']||'';
-    const left  = +s.days_left||+s['วันที่เหลือ']||+s['วันที่เหลือ']||0;
+    const name  = s['ชื่อ']||s.name||'';
+    const type  = s['ประเภท']||s.type||'';
+    const face  = +s['มูลค่าหน้าสลาก (฿)']||+s.face_value||0;
+    const rate  = +s['ดอกเบี้ย % ต่อปี']||+s.interest_rate||0;
+    const mat   = s['วันครบกำหนด']||s.maturity_date||'';
+    const left  = +s['วันที่เหลือ']||+s.days_left||0;
     if (!name) return '';
     return `<tr>
       <td><b>${name}</b></td>
