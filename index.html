@@ -837,18 +837,23 @@ const FORM_DEFS = {
       {key:"source",  label:"แหล่งข้อมูล",    type:"select", opts:["manual","import_csv","import_app"]},
     ],
     build: (vals) => {
-      // Transactions sheet columns:
-      // A=วันที่, B=ประเภท, C=จำนวนเงิน, D=หมวดหมู่(ชื่อ), E=category_id(auto),
-      // F=บัญชี(ชื่อ), G=account_id(auto), H=รายละเอียด, I=แหล่งข้อมูล, J=เดือน(auto)
-      const catName = vals.cat;
-      const accName = vals.acc;
-      const month   = vals.date ? vals.date.slice(0,7) : '';
-      return [vals.date, vals.type, vals.amount,
-        catName, '',       // D=ชื่อหมวด, E=category_id (Google Sheets คำนวณเอง)
-        accName, '',       // F=ชื่อบัญชี, G=account_id (Google Sheets คำนวณเอง)
-        vals.note, vals.source||'manual', month];
+      // A=วันที่ B=ประเภท C=จำนวนเงิน D=หมวดหมู่ E=category_id(auto)
+      // F=บัญชี G=account_id(auto) H=รายละเอียด/Note I=แหล่งข้อมูล J=เดือน(auto)
+      const month = (vals.date||'').slice(0,7);
+      return [
+        vals.date,            // A วันที่
+        vals.type,            // B ประเภท
+        vals.amount,          // C จำนวนเงิน
+        vals.cat,             // D หมวดหมู่ (ชื่อ)
+        '',                   // E category_id (VLOOKUP อัตโนมัติ)
+        vals.acc,             // F บัญชี (ชื่อ)
+        '',                   // G account_id (VLOOKUP อัตโนมัติ)
+        vals.note||'',        // H รายละเอียด/Note
+        vals.source||'manual',// I แหล่งข้อมูล
+        month,                // J เดือน (สำหรับ pivot)
+      ];
     }
-  },
+    },
   installment: {
     title: "เพิ่ม Installment",
     sheet: "Installments",
@@ -955,7 +960,7 @@ async function submitForm() {
   });
 
   // Basic validation
-  const empty = def.fields.filter(f => !vals[f.key] && f.type !== 'text');
+  const empty = def.fields.filter(f => !vals[f.key] && f.type !== 'text' && f.key !== 'note' && f.key !== 'source');
   if (empty.length) { toast("กรุณากรอกข้อมูลให้ครบ", "error"); return; }
 
   const rowData = def.build(vals);
