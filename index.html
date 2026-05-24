@@ -231,6 +231,27 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
   .search{display:none}
 }
 @media(max-width:520px){.stat-grid{grid-template-columns:1fr}}
+
+/* form class aliases from JS base */
+.form-row{margin-bottom:14px}
+.form-label{font-size:10px;font-weight:700;color:var(--muted2);text-transform:uppercase;
+  letter-spacing:.08em;display:block;margin-bottom:7px}
+.form-input{width:100%;background:var(--bg);border:1.5px solid rgba(0,0,0,.08);
+  border-radius:var(--rs);padding:10px 14px;color:var(--text);
+  font-family:var(--font);font-size:13px;outline:none;transition:all .15s}
+.form-input:focus{border-color:var(--sb);background:#fff;box-shadow:0 0 0 3px rgba(91,82,214,.1)}
+.form-select{width:100%;background:var(--bg);border:1.5px solid rgba(0,0,0,.08);
+  border-radius:var(--rs);padding:10px 14px;color:var(--text);
+  font-family:var(--font);font-size:13px;outline:none;cursor:pointer}
+.form-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:22px;
+  padding-top:18px;border-top:1px solid var(--bg)}
+.btn-primary{background:var(--sb);color:#fff;border:none;border-radius:var(--rs);
+  padding:10px 24px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font)}
+.btn-primary:hover{background:var(--sb2)}
+.btn-ghost{background:transparent;color:var(--muted2);border:1.5px solid rgba(0,0,0,.1);
+  border-radius:var(--rs);padding:10px 20px;font-size:13px;font-weight:600;
+  cursor:pointer;font-family:var(--font)}
+.btn-ghost:hover{border-color:var(--sb);color:var(--sb)}
 </style>
 </head>
 <body>
@@ -263,10 +284,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
 <section class="page active" id="page-dashboard">
   <div class="pg-hdr"><div class="pg-title">Overview</div></div>
   <div class="stat-grid">
-    <div class="stat-card"><div class="stat-badge badge-blue">NET WORTH</div><div class="stat-label">ความมั่งคั่งสุทธิ</div><div class="stat-value" id="nw-total" style="color:var(--blue)">—</div><span class="stat-icon">💰</span></div>
-    <div class="stat-card"><div class="stat-badge badge-green">↑ รายรับ</div><div class="stat-label">เดือนนี้</div><div class="stat-value" id="m-income" style="color:var(--green)">—</div><span class="stat-icon">📈</span></div>
+    <div class="stat-card"><div class="stat-badge badge-blue">NET WORTH</div><div class="stat-label">ความมั่งคั่งสุทธิ</div><div class="stat-value" id="nw-total" style="color:var(--blue)">—</div><div style="font-size:11px;color:var(--muted);margin-top:4px">ธนาคาร <span id="nw-bank">—</span> · กองทุน <span id="nw-inv">—</span></div><span class="stat-icon">💰</span></div>
+    <div class="stat-card"><div class="stat-badge badge-green">↑ รายรับ</div><div class="stat-label">เดือนนี้</div><div class="stat-value" id="m-income" style="color:var(--green)">—</div><div style="display:none"><span id="nw-sav"></span><span id="nw-debt"></span></div><span class="stat-icon">📈</span></div>
     <div class="stat-card"><div class="stat-badge badge-red">↓ รายจ่าย</div><div class="stat-label">เดือนนี้</div><div class="stat-value" id="m-expense" style="color:var(--red)">—</div><span class="stat-icon">📉</span></div>
-    <div class="stat-card"><div class="stat-badge badge-purple">ออมได้</div><div class="stat-label">เดือนนี้</div><div class="stat-value" id="m-save" style="color:var(--purple)">—</div><span class="stat-icon">🏦</span></div>
+    <div class="stat-card"><div class="stat-badge badge-purple">ออมได้/จ่ายบัตร</div><div class="stat-label">เดือนนี้</div><div class="stat-value" id="m-save" style="color:var(--purple)">—</div><div style="font-size:11px;color:var(--muted);margin-top:4px">บัตร <span id="m-cc">—</span></div><span class="stat-icon">🏦</span></div>
   </div>
   <div class="g2">
     <div class="chart-card">
@@ -294,6 +315,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
         <select id="tx-filter-type" class="fsel" onchange="renderTx()"><option value="">All types</option><option value="income">Income</option><option value="expense">Expense</option></select>
       </div>
     </div>
+    <div id="recent-tx" style="display:none"></div>
     <table class="tbl"><thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Category</th><th>Account</th><th>Note</th></tr></thead><tbody id="tx-body-dash"></tbody></table>
   </div>
 </section>
