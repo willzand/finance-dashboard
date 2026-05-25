@@ -293,7 +293,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
     <div class="chart-card">
       <div class="chart-hdr">
         <div class="chart-title">Summary</div>
-        <div class="chart-tabs"><button class="chart-tab active">Month</button><button class="chart-tab">Year</button></div>
+        <div class="chart-tabs" id="chart-mode-tabs">
+        <button class="chart-tab" id="tab-year" onclick="switchChart('year')">Year</button>
+        <button class="chart-tab active" id="tab-month" onclick="switchChart('month')">Month</button>
+      </div>
+      <div id="month-picker-wrap" style="display:flex;align-items:center;gap:6px">
+        <select id="month-picker" class="fsel" onchange="switchChart('month',this.value)" style="font-size:11px;padding:4px 8px">
+        </select>
+      </div>
       </div>
       <div class="chart-wrap"><canvas id="bar-chart"></canvas></div>
     </div>
@@ -470,6 +477,30 @@ async function appendRow(sheetName, spreadsheetId, rowData) {
 // ════════════════════════════════════════════════════════════
 //  LOAD ALL DATA
 // ════════════════════════════════════════════════════════════
+
+function switchChart(mode, month) {
+  // update tab styles
+  document.querySelectorAll('.chart-tab').forEach(b => b.classList.remove('active'));
+  const activeTab = document.getElementById('tab-' + mode);
+  if(activeTab) activeTab.classList.add('active');
+  // show/hide month picker
+  const picker = document.getElementById('month-picker-wrap');
+  if(picker) picker.style.display = mode === 'month' ? 'flex' : 'none';
+  buildBarChart(mode, month);
+}
+
+function populateMonthPicker() {
+  const getDate = t => (t['วันที่']||t.date||'').slice(0,7);
+  const months = [...new Set(DB.transactions.map(t=>getDate(t)).filter(Boolean))].sort().reverse();
+  const sel = document.getElementById("month-picker");
+  if(!sel) return;
+  const now = new Date();
+  const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  sel.innerHTML = months.map(m=>`<option value="${m}" ${m===thisMonth?'selected':''}>${m}</option>`).join('');
+  if(!months.includes(thisMonth) && months.length > 0) {
+    _selectedMonth = months[0];
+  }
+}
 async function loadAll() {
   setStatus("loading", "กำลังโหลดข้อมูล...");
   try {
@@ -516,7 +547,7 @@ const fmtN = n => Number(n) ? Number(n).toLocaleString('th-TH', {minimumFraction
 
 function renderAll() {
   renderDashboard();
-  setTimeout(() => { buildBarChart(); buildDonutChart(); }, 400);
+  setTimeout(() => { populateMonthPicker(); buildBarChart('month'); buildDonutChart(); }, 400);
   renderTx();
   renderAccounts();
   renderCreditCards();
@@ -1018,38 +1049,76 @@ function toast(msg, type="success") {
 loadAll();
 
 // ── Chart builders ──────────────────────────────────────────────
-let _barChart = null, _donutChart = null;
+let _barChart = null, _donutChart = null, _chartMode = 'year', _selectedMonth = null;
 
-function buildBarChart() {
-  const months = ['2026-01','2026-02','2026-03','2026-04','2026-05','2026-06',
-                  '2026-07','2026-08','2026-09','2026-10','2026-11','2026-12'];
-  const labels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const getAmt = t => +t['จำนวนเงิน (฿)']||+t['จำนวนเงิน ( )']||+t.amount||0;
-  const getType= t => t['ประเภท']||t.type||'';
-  const getMo  = t => (t['วันที่']||t.date||'').slice(0,7);
-  const inc = months.map(m => DB.transactions.filter(t=>getMo(t)===m&&getType(t)==='income').reduce((s,t)=>s+getAmt(t),0));
-  const exp = months.map(m => DB.transactions.filter(t=>getMo(t)===m&&getType(t)==='expense').reduce((s,t)=>s+getAmt(t),0));
+function buildBarChart(mode, selectedMonth) {
+  // mode = 'year' (monthly) หรือ 'month' (daily ของเดือนที่เลือก)
+  mode = mode || _chartMode || 'year';
+  _chartMode = mode;
+
+  const getAmt  = t => +t['จำนวนเงิน (฿)']||+t['จำนวนเงิน ( )']||+t.amount||0;
+  const getType = t => t['ประเภท']||t.type||'';
+  const getDate = t => (t['วันที่']||t.date||'').slice(0,10);
+
+  let labels = [], incomes = [], expenses = [];
+
+  if (mode === 'year') {
+    // รายเดือนทั้งปี
+    const months = ['2026-01','2026-02','2026-03','2026-04','2026-05','2026-06',
+                    '2026-07','2026-08','2026-09','2026-10','2026-11','2026-12'];
+    labels   = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    incomes  = months.map(m => DB.transactions
+      .filter(t=>getDate(t).startsWith(m)&&getType(t)==='income')
+      .reduce((s,t)=>s+getAmt(t),0));
+    expenses = months.map(m => DB.transactions
+      .filter(t=>getDate(t).startsWith(m)&&getType(t)==='expense')
+      .reduce((s,t)=>s+getAmt(t),0));
+  } else {
+    // รายวันของเดือนที่เลือก
+    const now   = new Date();
+    const month = selectedMonth || _selectedMonth ||
+      `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    _selectedMonth = month;
+    const [yr, mo] = month.split('-').map(Number);
+    const daysInMonth = new Date(yr, mo, 0).getDate();
+    labels   = Array.from({length:daysInMonth}, (_,i) => String(i+1));
+    const days = Array.from({length:daysInMonth}, (_,i) =>
+      `${month}-${String(i+1).padStart(2,'0')}`);
+    incomes  = days.map(d => DB.transactions
+      .filter(t=>getDate(t)===d&&getType(t)==='income')
+      .reduce((s,t)=>s+getAmt(t),0));
+    expenses = days.map(d => DB.transactions
+      .filter(t=>getDate(t)===d&&getType(t)==='expense')
+      .reduce((s,t)=>s+getAmt(t),0));
+  }
+
   const ctx = document.getElementById("bar-chart");
   if(!ctx) return;
   if(_barChart) _barChart.destroy();
   _barChart = new Chart(ctx, {
     type:'bar',
-    data:{labels,datasets:[
-      {label:'Income',data:inc,backgroundColor:'rgba(0,184,148,.75)',borderRadius:6,borderSkipped:false},
-      {label:'Expense',data:exp,backgroundColor:'rgba(225,112,85,.75)',borderRadius:6,borderSkipped:false},
+    data:{labels, datasets:[
+      {label:'Income', data:incomes,  backgroundColor:'rgba(0,184,148,.75)',borderRadius:5,borderSkipped:false},
+      {label:'Expense',data:expenses, backgroundColor:'rgba(225,112,85,.75)',borderRadius:5,borderSkipped:false},
     ]},
     options:{
-      responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{position:'top',labels:{font:{size:11,family:'Plus Jakarta Sans'},color:'#636e72',padding:16}},
-               tooltip:{mode:'index',intersect:false}},
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'top',labels:{font:{size:11,family:'Plus Jakarta Sans'},color:'#636e72',padding:16}},
+        tooltip:{mode:'index',intersect:false,callbacks:{
+          label: c => ` ${c.dataset.label}: ฿${c.raw.toLocaleString('th-TH',{maximumFractionDigits:0})}`
+        }}
+      },
       scales:{
-        x:{grid:{display:false},ticks:{color:'#b2bec3',font:{size:10}}},
+        x:{grid:{display:false},ticks:{color:'#b2bec3',font:{size:mode==='year'?10:9},
+           maxRotation:0}},
         y:{grid:{color:'rgba(0,0,0,.04)'},ticks:{color:'#b2bec3',font:{size:10},
            callback:v=>v>=1000?'฿'+(v/1000).toFixed(0)+'k':'฿'+v}}
       }
     }
   });
 }
+
 
 function buildDonutChart() {
   const bank = DB.accounts.reduce((s,a)=>s+(+a['ยอดปัจจุบัน (฿)']||+a.balance||0),0);
