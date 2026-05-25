@@ -327,6 +327,31 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
     <div id="recent-tx" style="display:none"></div>
     <table class="tbl"><thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Category</th><th>Account</th><th>Note</th></tr></thead><tbody id="tx-body-dash"></tbody></table>
   </div>
+
+  <!-- CC Summary in Dashboard -->
+  <div class="tbl-card" style="margin-top:4px">
+    <div class="tbl-hdr">
+      <div class="tbl-title">💳 Credit Card Summary</div>
+      <select id="cc-filter" class="fsel" onchange="renderDashCC()" style="min-width:150px">
+        <option value="">ทุกบัตร</option>
+      </select>
+    </div>
+    <div id="cc-dash-summary" style="display:flex;gap:24px;padding:14px 22px 10px;border-bottom:1px solid var(--bg);flex-wrap:wrap"></div>
+    <table class="tbl">
+      <thead><tr>
+        <th>บัตร</th><th>ธนาคาร</th>
+        <th style="text-align:right">วงเงิน</th>
+        <th style="text-align:right">ผ่อน/เดือน</th>
+        <th style="text-align:right">ประจำ/เดือน</th>
+        <th style="text-align:right">รวม/เดือน</th>
+        <th>% วงเงิน</th>
+        <th>สถานะ</th>
+      </tr></thead>
+      <tbody id="cc-dash-body"></tbody>
+    </table>
+    <div id="cc-dash-totals" style="display:flex;justify-content:flex-end;gap:32px;padding:12px 22px;background:var(--bg);font-weight:700;font-size:13px"></div>
+  </div>
+
 </section>
 
 <!-- TRANSACTIONS -->
@@ -560,6 +585,7 @@ function renderAll() {
   populateTxFilters();
   // sync dashboard tx table
   setTimeout(() => {
+    renderDashCC();
     const src = document.getElementById("tx-body");
     const dst = document.getElementById("tx-body-dash");
     if(src && dst) dst.innerHTML = src.innerHTML;
@@ -1100,6 +1126,86 @@ function showPage(id) {
 // ════════════════════════════════════════════════════════════
 //  STATUS
 // ════════════════════════════════════════════════════════════
+
+function renderDashCC() {
+  const filter = document.getElementById("cc-filter")?.value || "";
+  const fmt = n => '฿'+(+n||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+  // populate filter dropdown
+  const sel = document.getElementById("cc-filter");
+  if(sel && sel.options.length <= 1) {
+    DB.creditCards.forEach(c => {
+      const opt = document.createElement("option");
+      opt.value = c['ชื่อบัตร']||'';
+      opt.textContent = c['ชื่อบัตร']||'';
+      sel.appendChild(opt);
+    });
+  }
+
+  const cards = filter
+    ? DB.creditCards.filter(c => c['ชื่อบัตร'] === filter)
+    : DB.creditCards;
+
+  // summary bar
+  const totalInst = cards.reduce((s,c)=>s+(+c['ผ่อน/เดือน (฿)']||0),0);
+  const totalRec  = cards.reduce((s,c)=>s+(+c['ประจำ/เดือน (฿)']||0),0);
+  const totalPay  = cards.reduce((s,c)=>s+(+c['จ่ายรวม/เดือน (฿)']||0),0);
+  const totalLim  = cards.reduce((s,c)=>s+(+c['วงเงิน (฿)']||0),0);
+  const pct = totalLim ? (totalPay/totalLim*100).toFixed(1) : 0;
+
+  const sumEl = document.getElementById("cc-dash-summary");
+  if(sumEl) sumEl.innerHTML = [
+    {label:"จำนวนบัตร",   val: cards.length+" ใบ",        color:"var(--purple)"},
+    {label:"ผ่อน/เดือน",  val: fmt(totalInst),             color:"var(--blue)"},
+    {label:"ประจำ/เดือน", val: fmt(totalRec),              color:"var(--pink)"},
+    {label:"รวมจ่าย/เดือน",val: fmt(totalPay),            color:"var(--red)"},
+    {label:"% วงเงินรวม", val: pct+"%",                    color: pct>30?"var(--red)":"var(--green)"},
+  ].map(i=>`
+    <div style="display:flex;flex-direction:column;gap:3px">
+      <div style="font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:.07em;font-weight:600">${i.label}</div>
+      <div style="font-size:18px;font-weight:800;color:${i.color}">${i.val}</div>
+    </div>`).join('');
+
+  // table body
+  const tbody = document.getElementById("cc-dash-body");
+  if(!tbody) return;
+  tbody.innerHTML = cards.map(c => {
+    const lim  = +c['วงเงิน (฿)']||0;
+    const inst = +c['ผ่อน/เดือน (฿)']||0;
+    const rec  = +c['ประจำ/เดือน (฿)']||0;
+    const tot  = +c['จ่ายรวม/เดือน (฿)']||0;
+    const pct  = lim ? (tot/lim*100).toFixed(1) : 0;
+    const status = c['สถานะ']||'';
+    const sCls = status.includes('สูง')?'badge-red':status.includes('ปาน')?'badge-amber':'badge-green';
+    const barC = pct>50?'var(--red)':pct>25?'var(--amber)':'var(--green)';
+    return `<tr>
+      <td><b>${c['ชื่อบัตร']||''}</b></td>
+      <td style="color:var(--muted2)">${c['ธนาคาร']||''}</td>
+      <td class="num" style="color:var(--muted2)">${fmt(lim)}</td>
+      <td class="num" style="color:var(--blue)">${fmt(inst)}</td>
+      <td class="num" style="color:var(--pink)">${fmt(rec)}</td>
+      <td class="num" style="color:var(--text);font-weight:800">${fmt(tot)}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="flex:1;height:5px;background:var(--bg);border-radius:3px;overflow:hidden;min-width:60px">
+            <div style="height:100%;width:${Math.min(pct,100)}%;background:${barC};border-radius:3px"></div>
+          </div>
+          <span style="font-size:11px;font-weight:700;min-width:32px;color:${barC}">${pct}%</span>
+        </div>
+      </td>
+      <td><span class="badge ${sCls}">${status}</span></td>
+    </tr>`;
+  }).join('');
+
+  // totals
+  const totEl = document.getElementById("cc-dash-totals");
+  if(totEl) totEl.innerHTML = `
+    <span style="color:var(--muted2)">รวม ${cards.length} บัตร</span>
+    <span>ผ่อน <b style="color:var(--blue)">${fmt(totalInst)}</b></span>
+    <span>ประจำ <b style="color:var(--pink)">${fmt(totalRec)}</b></span>
+    <span>รวม/เดือน <b style="color:var(--red)">${fmt(totalPay)}</b></span>`;
+}
+
 function setStatus(type, msg) {
   const d = document.getElementById("status-dot");
   const t = document.getElementById("status-text");
