@@ -260,13 +260,20 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
 
 <aside class="sidebar">
   <div class="sb-logo">My <b>Finance</b></div>
-  <div class="sb-sec">Main Menu</div>
+
   <button class="sb-item active" onclick="showPage('dashboard')" data-page="dashboard"><span class="sb-icon">◈</span><span>Dashboard</span></button>
+
+  <div class="sb-sec">รายรับ-รายจ่าย</div>
   <button class="sb-item" onclick="showPage('transactions')" data-page="transactions"><span class="sb-icon">≡</span><span>Transactions</span></button>
   <button class="sb-item" onclick="showPage('accounts')" data-page="accounts"><span class="sb-icon">◎</span><span>Accounts</span></button>
+
+  <div class="sb-sec">บัตรเครดิต</div>
   <button class="sb-item" onclick="showPage('creditcards')" data-page="creditcards"><span class="sb-icon">▣</span><span>Cards</span></button>
   <button class="sb-item" onclick="showPage('installments')" data-page="installments"><span class="sb-icon">⊞</span><span>Installments</span></button>
   <button class="sb-item" onclick="showPage('recurring')" data-page="recurring"><span class="sb-icon">↻</span><span>Recurring</span><span class="sb-badge" id="rec-count">—</span></button>
+  <button class="sb-item" onclick="showPage('billing')" data-page="billing"><span class="sb-icon">📅</span><span>Billing History</span></button>
+
+  <div class="sb-sec">การลงทุน</div>
   <button class="sb-item" onclick="showPage('investments')" data-page="investments"><span class="sb-icon">◬</span><span>Investments</span></button>
   <button class="sb-item" onclick="showPage('savings')" data-page="savings"><span class="sb-icon">◇</span><span>Savings</span></button>
 </aside>
@@ -325,7 +332,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
       </div>
     </div>
     <div id="recent-tx" style="display:none"></div>
-    <table class="tbl"><thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Category</th><th>Account</th><th>Note</th></tr></thead><tbody id="tx-body-dash"></tbody></table>
+    <table class="tbl"><thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Category</th><th>Account</th><th>Note</th><th style="text-align:center">Actions</th></tr></thead><tbody id="tx-body-dash"></tbody></table>
   </div>
 
   <!-- CC Summary in Dashboard -->
@@ -368,7 +375,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
         <select id="tx-filter-type2" class="fsel" onchange="renderTx2()"><option value="">All types</option><option value="income">Income</option><option value="expense">Expense</option></select>
       </div>
     </div>
-    <table class="tbl"><thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Category</th><th>Account</th><th>Note</th></tr></thead><tbody id="tx-body"></tbody></table>
+    <table class="tbl"><thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Category</th><th>Account</th><th>Note</th><th style="text-align:center">Actions</th></tr></thead><tbody id="tx-body"></tbody></table>
   </div>
 </section>
 
@@ -385,6 +392,36 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
   <div class="tbl-card"><div class="tbl-hdr"><div class="tbl-title">Card Summary</div></div>
     <table class="tbl"><thead><tr><th>Card</th><th>Bank</th><th style="text-align:right">Limit</th><th style="text-align:right">ผ่อน/เดือน</th><th style="text-align:right">ประจำ/เดือน</th><th style="text-align:right">รวม/เดือน</th><th>สถานะ</th></tr></thead><tbody id="cc-body"></tbody></table>
   </div>
+
+  <!-- Payment Calendar in Cards page -->
+  <div style="margin-top:8px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div style="font-size:18px;font-weight:800;letter-spacing:-.02em">🗓 Payment Calendar</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button onclick="prevMonth()" style="background:var(--bg);border:1px solid rgba(0,0,0,.1);border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:16px">‹</button>
+        <div id="cal-month-label" style="font-size:15px;font-weight:700;min-width:120px;text-align:center"></div>
+        <button onclick="nextMonth()" style="background:var(--bg);border:1px solid rgba(0,0,0,.1);border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:16px">›</button>
+      </div>
+    </div>
+    <div class="tbl-card" style="margin-bottom:16px">
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--bg)">
+        <div style="padding:10px;text-align:center;font-size:11px;font-weight:700;color:var(--muted2)">อา</div>
+        <div style="padding:10px;text-align:center;font-size:11px;font-weight:700;color:var(--muted2)">จ</div>
+        <div style="padding:10px;text-align:center;font-size:11px;font-weight:700;color:var(--muted2)">อ</div>
+        <div style="padding:10px;text-align:center;font-size:11px;font-weight:700;color:var(--muted2)">พ</div>
+        <div style="padding:10px;text-align:center;font-size:11px;font-weight:700;color:var(--muted2)">พฤ</div>
+        <div style="padding:10px;text-align:center;font-size:11px;font-weight:700;color:var(--muted2)">ศ</div>
+        <div style="padding:10px;text-align:center;font-size:11px;font-weight:700;color:var(--red)">ส</div>
+      </div>
+      <div id="cal-grid" style="display:grid;grid-template-columns:repeat(7,1fr)"></div>
+    </div>
+    <div class="tbl-card">
+      <div class="tbl-hdr"><div class="tbl-title">รายการชำระเดือนนี้</div></div>
+      <div id="payment-list" style="padding:8px 0"></div>
+      <div id="payment-totals" style="display:flex;justify-content:flex-end;gap:32px;padding:12px 22px;background:var(--bg);font-weight:700;font-size:13px"></div>
+    </div>
+  </div>
+
 </section>
 
 <!-- INSTALLMENTS -->
@@ -401,7 +438,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
 
 <!-- INVESTMENTS -->
 <section class="page" id="page-investments">
-  <div class="pg-hdr"><div><div class="pg-title">Investments</div><div class="pg-sub">กองทุนรวม</div></div><button class="btn-add" onclick="openForm('fundtx')">+ Trade</button></div>
+  <div class="pg-hdr"><div><div class="pg-title">Investments</div><div class="pg-sub">กองทุนรวม</div></div><div style="display:flex;gap:8px">
+      <button class="btn-add" onclick="openNAVEditor()" style="background:rgba(251,191,36,.1);color:var(--amber);border-color:rgba(251,191,36,.3)">📊 Update NAV</button>
+      <button class="btn-add" onclick="openForm('fundtx')">+ Trade</button>
+    </div></div>
   <div class="stat-grid" style="margin-bottom:20px">
     <div class="stat-card"><div class="stat-badge badge-blue">ต้นทุน</div><div class="stat-value" id="inv-cost" style="color:var(--muted2)">—</div></div>
     <div class="stat-card"><div class="stat-badge badge-purple">มูลค่า</div><div class="stat-value" id="inv-val" style="color:var(--purple)">—</div></div>
@@ -416,6 +456,35 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
   <div class="pg-hdr"><div><div class="pg-title">Savings & Bonds</div><div class="pg-sub">สลากออมสิน</div></div></div>
   <div class="tbl-card"><table class="tbl"><thead><tr><th>Name</th><th>Type</th><th style="text-align:right">Value</th><th style="text-align:right">Rate</th><th>Maturity</th><th style="text-align:right">Days left</th></tr></thead><tbody id="sav-body"></tbody></table></div>
 </section>
+
+<!-- BILLING HISTORY -->
+<section class="page" id="page-billing">
+  <div class="pg-hdr">
+    <div><div class="pg-title">Billing History</div><div class="pg-sub">ประวัติยอดบิลและการชำระ</div></div>
+  </div>
+  <div class="tbl-card">
+    <div class="tbl-hdr">
+      <div class="tbl-title">ประวัติการชำระ</div>
+      <select id="billing-filter-card" class="fsel" onchange="renderBilling()" style="min-width:150px">
+        <option value="">ทุกบัตร</option>
+      </select>
+    </div>
+    <table class="tbl">
+      <thead><tr>
+        <th>รอบบิล</th><th>บัตร</th>
+        <th style="text-align:right">ยอดบิล</th>
+        <th style="text-align:right">ยอดที่ชำระ</th>
+        <th style="text-align:center">ชำระเต็ม?</th>
+        <th style="text-align:right">ดอกเบี้ย</th>
+        <th>หมายเหตุ</th>
+      </tr></thead>
+      <tbody id="billing-body"></tbody>
+    </table>
+    <div id="billing-summary" style="display:flex;gap:24px;padding:12px 22px;background:var(--bg);font-weight:700;font-size:13px"></div>
+  </div>
+</section>
+
+
 
 </div></div>
 
@@ -533,7 +602,8 @@ async function loadAll() {
   try {
     const [txData, accData, catData,
            ccData, instData, recData,
-           fundsData, savData, ftxData] = await Promise.all([
+           fundsData, savData, ftxData,
+           billingData, paymentData] = await Promise.all([
       fetchSheet(IDS.tx,  "Transactions"),
       fetchSheet(IDS.tx,  "Accounts"),
       fetchSheet(IDS.tx,  "Categories"),
@@ -543,6 +613,8 @@ async function loadAll() {
       fetchSheet(IDS.inv, "Funds"),
       fetchSheet(IDS.inv, "Savings & Bonds"),
       fetchSheet(IDS.inv, "Fund Transactions"),
+      fetchSheet(IDS.cc,  "Billing History"),
+      fetchSheet(IDS.cc,  "Payment Calendar"),
     ]);
 
     DB.transactions = txData;
@@ -554,6 +626,8 @@ async function loadAll() {
     DB.funds        = fundsData.filter(r => (r["รหัส"]||r.fund_id||"").startsWith("FUND"));
     DB.savings      = savData.filter(r => (r["รหัส"]||r.saving_id||"").startsWith("SAV"));
     DB.fundTx       = ftxData;
+    DB.billing      = billingData.filter(r => r['รอบบิล'] || r['รหัสบัตร']);
+    DB.payment      = paymentData;
 
     setStatus("ok", `อัปเดตล่าสุด ${new Date().toLocaleTimeString('th-TH')}`);
     document.getElementById("last-updated").textContent = `ข้อมูล ณ ${new Date().toLocaleString('th-TH')}`;
@@ -582,6 +656,8 @@ function renderAll() {
   renderRecurring();
   renderInvestments();
   renderSavings();
+  renderBilling();
+  renderPaymentCalendar();
   populateTxFilters();
   // sync dashboard tx table
   setTimeout(() => {
@@ -1121,6 +1197,7 @@ function showPage(id) {
   document.querySelectorAll('.sb-item[data-page]').forEach(b => b.classList.remove('active'));
   const active = document.querySelector(`.sb-item[data-page="${id}"]`);
   if(active) active.classList.add('active');
+  if(id === 'creditcards') renderPaymentCalendar();
 }
 
 // ════════════════════════════════════════════════════════════
@@ -1205,6 +1282,275 @@ function renderDashCC() {
     <span>ประจำ <b style="color:var(--pink)">${fmt(totalRec)}</b></span>
     <span>รวม/เดือน <b style="color:var(--red)">${fmt(totalPay)}</b></span>`;
 }
+
+
+// ════════════════════════════════════════════════════════════════
+// EDIT / DELETE TRANSACTIONS
+// ════════════════════════════════════════════════════════════════
+let _editRowIndex = null;
+
+function editTx(rowIdx) {
+  const t = DB.transactions[rowIdx];
+  if (!t) return;
+  _editRowIndex = rowIdx;
+  const getAmount = t => +t['จำนวนเงิน (฿)']||+t['จำนวนเงิน ( )']||+t.amount||0;
+  const getType   = t => t['ประเภท']||t.type||'';
+  const getDate   = t => (t['วันที่']||t.date||'').slice(0,10);
+  const getCat    = t => t['หมวดหมู่']||'';
+  const getAcc    = t => t['บัญชี']||'';
+  const getNote   = t => t['รายละเอียด / Note']||t['รายละเอียด']||t.note||'';
+
+  document.getElementById("form-title").textContent = "✏️ แก้ไขรายการ";
+  document.getElementById("form-fields").innerHTML = `
+    <div class="form-row"><label class="form-label">วันที่</label>
+      <input class="form-input" id="ff-date" type="date" value="${getDate(t)}"></div>
+    <div class="form-row"><label class="form-label">ประเภท</label>
+      <select class="form-select" id="ff-type">
+        <option ${getType(t)==='income'?'selected':''}>income</option>
+        <option ${getType(t)==='expense'?'selected':''}>expense</option>
+      </select></div>
+    <div class="form-row"><label class="form-label">จำนวนเงิน (฿)</label>
+      <input class="form-input" id="ff-amount" type="number" step="any" value="${getAmount(t)}"></div>
+    <div class="form-row"><label class="form-label">หมวดหมู่</label>
+      <select class="form-select" id="ff-cat">
+        ${DB.categories.map(c=>`<option ${getCat(t)===c['name_th']?'selected':''}>${c['name_th']||''}</option>`).join('')}
+      </select></div>
+    <div class="form-row"><label class="form-label">บัญชี</label>
+      <select class="form-select" id="ff-acc">
+        ${DB.accounts.map(a=>`<option ${getAcc(t)===a['bank_name']?'selected':''}>${a['bank_name']||''}</option>`).join('')}
+      </select></div>
+    <div class="form-row"><label class="form-label">รายละเอียด</label>
+      <input class="form-input" id="ff-note" type="text" value="${getNote(t)}"></div>`;
+
+  // override submit button
+  document.querySelector(".faction .btn-p").onclick = submitEditTx;
+  document.getElementById("form-overlay").classList.add("open");
+}
+
+async function submitEditTx() {
+  if (_editRowIndex === null) return;
+  const date   = document.getElementById("ff-date")?.value||'';
+  const type   = document.getElementById("ff-type")?.value||'';
+  const amount = document.getElementById("ff-amount")?.value||'';
+  const cat    = document.getElementById("ff-cat")?.value||'';
+  const acc    = document.getElementById("ff-acc")?.value||'';
+  const note   = document.getElementById("ff-note")?.value||'';
+  const month  = date.slice(0,7);
+
+  // +2 เพราะ Google Sheets row 1=banner, row 2=header, data เริ่มที่ row 3
+  // และ DB.transactions index 0 = row 3
+  const sheetRow = _editRowIndex + 3;
+  const rowData  = [date, type, amount, cat, '', acc, '', note, 'manual', month];
+
+  const params = new URLSearchParams({
+    action: "update",
+    spreadsheetId: IDS.tx,
+    sheetName: "Transactions",
+    rowNumber: sheetRow,
+    rowData: JSON.stringify(rowData),
+  });
+  try {
+    const resp = await fetch(`${APPS_SCRIPT_URL}?${params}`);
+    const json = await resp.json();
+    if (json.status === "ok") {
+      toast("✅ แก้ไขสำเร็จ", "success");
+      closeForm();
+      setTimeout(loadAll, 1200);
+    } else {
+      toast("❌ " + (json.msg||"Error"), "error");
+    }
+  } catch(e) { toast("❌ " + e.message, "error"); }
+}
+
+async function deleteTx(rowIdx) {
+  if (!confirm("ลบรายการนี้?")) return;
+  const sheetRow = rowIdx + 3;
+  const params = new URLSearchParams({
+    action: "delete",
+    spreadsheetId: IDS.tx,
+    sheetName: "Transactions",
+    rowNumber: sheetRow,
+  });
+  try {
+    const resp = await fetch(`${APPS_SCRIPT_URL}?${params}`);
+    const json = await resp.json();
+    if (json.status === "ok") {
+      toast("🗑 ลบรายการแล้ว", "success");
+      setTimeout(loadAll, 1200);
+    } else {
+      toast("❌ " + (json.msg||"Error"), "error");
+    }
+  } catch(e) { toast("❌ " + e.message, "error"); }
+}
+
+// ════════════════════════════════════════════════════════════════
+// BILLING HISTORY
+// ════════════════════════════════════════════════════════════════
+function renderBilling() {
+  const filter = document.getElementById("billing-filter-card")?.value||"";
+  const fmt = n => n ? '฿'+(+n).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
+
+  // ดึงจาก DB.billing (Billing History sheet)
+  const data = (DB.billing||[]).filter(r => {
+    const hasData = r['รอบบิล']||r['รหัสบัตร'];
+    if (!hasData) return false;
+    if (filter) return r['ชื่อบัตร']===filter || r['รหัสบัตร']===filter;
+    return true;
+  });
+
+  // populate filter
+  const sel = document.getElementById("billing-filter-card");
+  if (sel && sel.options.length <= 1) {
+    const cards = [...new Set(DB.billing.map(r=>r['ชื่อบัตร']).filter(Boolean))];
+    cards.forEach(c => { const o=document.createElement("option"); o.value=c; o.textContent=c; sel.appendChild(o); });
+  }
+
+  const tbody = document.getElementById("billing-body");
+  if (!tbody) return;
+  tbody.innerHTML = data.map(r => {
+    const paid = r['ชำระเต็ม?']||'';
+    const paidCls = paid.includes('✅')?'badge-green':paid.includes('❌')?'badge-red':'badge-amber';
+    return `<tr>
+      <td style="font-family:var(--mono)">${r['รอบบิล']||''}</td>
+      <td><b>${r['ชื่อบัตร']||r['รหัสบัตร']||''}</b></td>
+      <td class="num">${fmt(r['ยอดในใบแจ้งหนี้ (฿)'])}</td>
+      <td class="num" style="color:var(--green)">${fmt(r['ยอดที่ชำระ (฿)'])}</td>
+      <td style="text-align:center"><span class="badge ${paidCls}">${paid}</span></td>
+      <td class="num" style="color:var(--red)">${fmt(r['ดอกเบี้ยที่จ่าย (฿)'])}</td>
+      <td style="color:var(--muted2)">${r['หมายเหตุ']||''}</td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">ยังไม่มีข้อมูล</td></tr>';
+
+  const totalBill = data.reduce((s,r)=>s+(+r['ยอดในใบแจ้งหนี้ (฿)']||0),0);
+  const totalPaid = data.reduce((s,r)=>s+(+r['ยอดที่ชำระ (฿)']||0),0);
+  const totalInt  = data.reduce((s,r)=>s+(+r['ดอกเบี้ยที่จ่าย (฿)']||0),0);
+  const el = document.getElementById("billing-summary");
+  if (el) el.innerHTML = `
+    <span>รายการ <b>${data.length}</b></span>
+    <span>ยอดบิลรวม <b style="color:var(--red)">${fmt(totalBill)}</b></span>
+    <span>ชำระรวม <b style="color:var(--green)">${fmt(totalPaid)}</b></span>
+    <span>ดอกเบี้ยรวม <b style="color:var(--red)">${totalInt>0?fmt(totalInt):'฿0.00'}</b></span>`;
+}
+
+// ════════════════════════════════════════════════════════════════
+// PAYMENT CALENDAR
+// ════════════════════════════════════════════════════════════════
+function renderPaymentCalendar() {
+  const now = new Date();
+  if (!window._calYear)  window._calYear  = now.getFullYear();
+  if (!window._calMonth) window._calMonth = now.getMonth() + 1;
+  buildCalendar(window._calYear, window._calMonth);
+}
+
+function prevMonth() {
+  if (window._calMonth === 1) { window._calYear--; window._calMonth = 12; }
+  else window._calMonth--;
+  buildCalendar(window._calYear, window._calMonth);
+}
+
+function nextMonth() {
+  if (window._calMonth === 12) { window._calYear++; window._calMonth = 1; }
+  else window._calMonth++;
+  buildCalendar(window._calYear, window._calMonth);
+}
+
+function buildCalendar(year, month) {
+  const fmt  = n => n ? '฿'+(+n).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
+  const monthNames = ['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+  document.getElementById("cal-month-label").textContent = `${monthNames[month]} ${year + 543}`;
+
+  // สร้าง event map: day → [{card, type, amount, color}]
+  const events = {};
+  const addEvent = (day, card, type, amount, color) => {
+    if (!day || isNaN(day)) return;
+    const d = +day;
+    if (!events[d]) events[d] = [];
+    events[d].push({card, type, amount, color});
+  };
+
+  DB.creditCards.forEach(c => {
+    const name = c['ชื่อบัตร']||'';
+    const stmt = c['วันตัดรอบ']||'';
+    const due  = c['วันครบกำหนด']||'';
+    const tot  = +c['จ่ายรวม/เดือน (฿)']||0;
+    // parse "ทุกวันที่ N" หรือแค่ตัวเลข
+    const parseDay = s => { const m = String(s).match(/\d+/); return m ? +m[0] : null; };
+    addEvent(parseDay(stmt), name, 'ตัดรอบ', 0, 'var(--amber)');
+    if (tot > 0) addEvent(parseDay(due), name, 'ชำระ', tot, 'var(--red)');
+  });
+
+  // สร้าง calendar grid
+  const firstDay = new Date(year, month-1, 1).getDay(); // 0=Sun
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const today = new Date();
+  const isThisMonth = year === today.getFullYear() && month === today.getMonth()+1;
+  const todayDate = today.getDate();
+
+  let cells = '';
+  // empty cells before first day
+  for (let i = 0; i < firstDay; i++) {
+    cells += '<div style="min-height:80px;padding:6px;border-right:1px solid var(--bg);border-bottom:1px solid var(--bg)"></div>';
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const isToday = isThisMonth && d === todayDate;
+    const dayEvents = events[d] || [];
+    const isSat = (firstDay + d - 1) % 7 === 6;
+    const isSun = (firstDay + d - 1) % 7 === 0;
+
+    const eventHtml = dayEvents.map(ev => `
+      <div style="font-size:9px;padding:2px 4px;border-radius:3px;margin-top:2px;white-space:nowrap;overflow:hidden;
+        background:${ev.type==='ชำระ'?'rgba(225,112,85,.12)':'rgba(251,191,36,.12)'};
+        color:${ev.color};font-weight:600">
+        ${ev.type==='ชำระ'?'💳':'✂️'} ${ev.card.length>8?ev.card.slice(0,8)+'…':ev.card}
+        ${ev.type==='ชำระ'&&ev.amount?'<b>'+fmt(ev.amount)+'</b>':''}
+      </div>`).join('');
+
+    cells += `<div style="min-height:80px;padding:6px;border-right:1px solid var(--bg);
+      border-bottom:1px solid var(--bg);background:${isToday?'rgba(91,82,214,.06)':'transparent'};
+      position:relative">
+      <div style="font-size:13px;font-weight:${isToday?'800':'500'};
+        color:${isToday?'var(--sb)':isSun?'var(--red)':isSat?'var(--red)':'var(--text)'};
+        ${isToday?'background:var(--sb);color:#fff;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;':''}
+        ">${d}</div>
+      ${eventHtml}
+    </div>`;
+  }
+  document.getElementById("cal-grid").innerHTML = cells;
+
+  // Payment list
+  const listEl = document.getElementById("payment-list");
+  const allEvents = Object.entries(events)
+    .sort((a,b) => +a[0] - +b[0])
+    .flatMap(([day, evs]) => evs.map(ev => ({day:+day, ...ev})));
+
+  listEl.innerHTML = allEvents.length ? allEvents.map(ev => `
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 22px;
+      border-bottom:1px solid var(--bg)">
+      <div style="width:32px;height:32px;border-radius:50%;
+        background:${ev.type==='ชำระ'?'var(--red-l)':'var(--amber-l)'};
+        display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">
+        ${ev.type==='ชำระ'?'💳':'✂️'}
+      </div>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:700">${ev.card}</div>
+        <div style="font-size:11px;color:var(--muted2)">${ev.type} — วันที่ ${ev.day} ${monthNames[month]}</div>
+      </div>
+      ${ev.amount ? `<div style="font-size:14px;font-weight:800;color:var(--red)">${fmt(ev.amount)}</div>` : `<div style="font-size:12px;color:var(--amber)">ตัดรอบ</div>`}
+    </div>`).join('') : '<div style="padding:24px 22px;color:var(--muted);text-align:center">ไม่มีรายการ</div>';
+
+  // Totals
+  let tInst=0, tRec=0, tTotal=0;
+  DB.creditCards.forEach(c => { tInst += +c['ผ่อน/เดือน (฿)']||0; tRec += +c['ประจำ/เดือน (฿)']||0; tTotal += +c['จ่ายรวม/เดือน (฿)']||0; });
+  const totEl = document.getElementById("payment-totals");
+  if (totEl) totEl.innerHTML = `
+    <span>รวมทุกบัตร</span>
+    <span>ผ่อน <b style="color:var(--blue)">${fmt(tInst)}</b></span>
+    <span>ประจำ <b style="color:var(--pink)">${fmt(tRec)}</b></span>
+    <span>จ่ายรวม/เดือน <b style="color:var(--red)">${fmt(tTotal)}</b></span>`;
+}
+
 
 function setStatus(type, msg) {
   const d = document.getElementById("status-dot");
@@ -1372,8 +1718,12 @@ function renderTx2() {
       <td>${getCat(t)}</td>
       <td style="color:var(--muted2)">${getAcc(t)}</td>
       <td style="color:var(--muted2)">${getNote(t)}</td>
+      <td style="text-align:center;white-space:nowrap">
+        <button onclick="editTx(${t._idx})" style="background:var(--blue-l);color:var(--blue);border:none;border-radius:5px;padding:3px 8px;font-size:11px;font-weight:700;cursor:pointer;margin-right:4px">✏️</button>
+        <button onclick="deleteTx(${t._idx})" style="background:var(--red-l);color:var(--red);border:none;border-radius:5px;padding:3px 8px;font-size:11px;font-weight:700;cursor:pointer">🗑</button>
+      </td>
     </tr>`;
-  }).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">ไม่พบรายการ</td></tr>';
+  }).join('')||'<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">ไม่พบรายการ</td></tr>';
 }
 
 // setStatus defined above
