@@ -58,12 +58,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
 .tg{flex:1}
 .tg h2{font-size:17px;font-weight:800;letter-spacing:-.02em}
 .tg p{font-size:11px;color:var(--muted2);margin-top:1px}
-.search{display:flex;align-items:center;gap:8px;
-  background:var(--bg);border:1px solid rgba(0,0,0,.07);
-  border-radius:var(--rs);padding:8px 14px;min-width:220px}
-.search input{border:none;background:transparent;outline:none;
-  font-size:13px;font-family:var(--font);color:var(--text);width:100%}
-.search input::placeholder{color:var(--muted)}
 .status-pill{display:flex;align-items:center;gap:6px;font-size:11px;
   background:var(--bg);padding:6px 12px;border-radius:20px;
   color:var(--muted2);white-space:nowrap;max-width:180px;overflow:hidden}
@@ -230,8 +224,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
   .g2,.g3{grid-template-columns:1fr}
   .topbar{padding:0 14px}
   .content{padding:14px}
-  .search{display:none}
-}
+  }
 @media(max-width:520px){.stat-grid{grid-template-columns:1fr}}
 
 /* form class aliases from JS base */
@@ -281,7 +274,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
 <div class="main">
 <header class="topbar">
   <div class="tg"><h2>สวัสดี, TomS 👋</h2><p id="last-updated">กำลังโหลด...</p></div>
-  <div class="search"><span>🔍</span><input type="text" placeholder="Search anything..."></div>
+
   <div class="status-pill"><div class="dot" id="status-dot"></div><span id="status-text">—</span></div>
   <button class="rb" onclick="loadAll()">↻</button>
   <div class="avatar">T</div>
@@ -326,13 +319,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
   <div class="tbl-card">
     <div class="tbl-hdr">
       <div class="tbl-title">Latest Transactions</div>
-      <div style="display:flex;gap:8px">
-        <select id="tx-filter-month" class="fsel" onchange="renderTx()"><option value="">All months</option></select>
-        <select id="tx-filter-type" class="fsel" onchange="renderTx()"><option value="">All types</option><option value="income">Income</option><option value="expense">Expense</option></select>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="dash-filter-month" class="fsel" onchange="renderDashTx()"><option value="">ทุกเดือน</option></select>
+        <select id="dash-filter-type" class="fsel" onchange="renderDashTx()"><option value="">All types</option><option value="income">Income</option><option value="expense">Expense</option></select>
       </div>
     </div>
     <div id="recent-tx" style="display:none"></div>
-    <table class="tbl"><thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Category</th><th>Account</th><th>Note</th><th style="text-align:center">Actions</th></tr></thead><tbody id="tx-body-dash"></tbody></table>
+    <table class="tbl"><thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Category</th><th>Account</th><th>Note</th></tr></thead><tbody id="tx-body-dash"></tbody></table>
+    <div style="text-align:center;padding:12px">
+      <button onclick="showPage('transactions')" style="background:none;border:1px solid var(--purple);color:var(--purple);padding:6px 20px;border-radius:20px;cursor:pointer;font-size:13px;font-weight:600">ดูทั้งหมด →</button>
+    </div>
   </div>
 
   <!-- CC Summary in Dashboard -->
@@ -626,7 +622,7 @@ async function loadAll() {
     DB.funds        = fundsData.filter(r => (r["รหัส"]||r.fund_id||"").startsWith("FUND"));
     DB.savings      = savData.filter(r => (r["รหัส"]||r.saving_id||"").startsWith("SAV"));
     DB.fundTx       = ftxData;
-    DB.billing      = billingData.filter(r => r['รอบบิล'] || r['รหัสบัตร']);
+    DB.billing      = billingData.filter(r => r['รหัสบัตร'] && r['รหัสบัตร'].toString().startsWith('CARD'));
     DB.payment      = paymentData;
 
     setStatus("ok", `อัปเดตล่าสุด ${new Date().toLocaleTimeString('th-TH')}`);
@@ -659,19 +655,53 @@ function renderAll() {
   renderBilling();
   renderPaymentCalendar();
   populateTxFilters();
-  // sync dashboard tx table
+  // populate dashboard month filter + render dash tx
   setTimeout(() => {
     renderDashCC();
-    const src = document.getElementById("tx-body");
-    const dst = document.getElementById("tx-body-dash");
-    if(src && dst) dst.innerHTML = src.innerHTML;
-    // populate tx2 filter
     const getDate = t => t['วันที่']||t.date||'';
     const months = [...new Set(DB.transactions.map(t=>getDate(t).slice(0,7)).filter(Boolean))].sort().reverse();
-    const sel2 = document.getElementById("tx-filter-month2");
-    if(sel2) sel2.innerHTML = '<option value="">All months</option>'+months.map(m=>`<option value="${m}">${m}</option>`).join('');
+    const sel = document.getElementById("dash-filter-month");
+    if(sel) sel.innerHTML = '<option value="">ทุกเดือน</option>'+months.map(m=>`<option value="${m}">${m}</option>`).join('');
+    renderDashTx();
     renderTx2();
   }, 100);
+}
+
+// ── Dashboard Transactions (independent from Transactions page) ─
+function renderDashTx() {
+  const filterMonth = document.getElementById("dash-filter-month")?.value||"";
+  const filterType  = document.getElementById("dash-filter-type")?.value||"";
+  const normalizeDate = v => { const s=String(v||''); return s.includes('T')?s.slice(0,10):s.slice(0,10); };
+  const getDate   = t => normalizeDate(t["วันที่"]||t.date||"");
+  const getAmount = t => +t["จำนวนเงิน (฿)"]||+t["จำนวนเงิน ( )"]||+t["จำนวนเงิน"]||+t.amount||0;
+  const getType   = t => t["ประเภท"]||t.type||"";
+
+  let rows = [...DB.transactions]
+    .sort((a,b) => (b["วันที่"]||b.date||"").localeCompare(a["วันที่"]||a.date||""));
+
+  if (filterMonth) rows = rows.filter(t => getDate(t).startsWith(filterMonth));
+  if (filterType)  rows = rows.filter(t => getType(t)===filterType);
+  rows = rows.slice(0, 10);
+
+  const tbody = document.getElementById("tx-body-dash");
+  if (!tbody) return;
+  const fmtAmt = n => "฿"+(+n).toLocaleString("th-TH",{minimumFractionDigits:2,maximumFractionDigits:2});
+  tbody.innerHTML = rows.length ? rows.map(t => {
+    const type = getType(t);
+    const amt  = getAmount(t);
+    const date = getDate(t);
+    const note = t["รายละเอียด / Note"]||t["รายละเอียด"]||t.note||"";
+    const cat  = t["หมวดหมู่"]||t["category_name"]||"";
+    const acc  = t["บัญชี"]||t["account_name"]||"";
+    return `<tr>
+      <td style="font-family:var(--mono);font-size:12px">${date.slice(5)}</td>
+      <td><span class="badge ${type==="income"?"badge-green":"badge-red"}">${type}</span></td>
+      <td class="num" style="color:${type==="income"?"var(--green)":"var(--red)"}">${fmtAmt(amt)}</td>
+      <td><span style="font-size:12px;color:var(--muted)">${cat}</span></td>
+      <td style="font-size:12px;color:var(--muted2)">${acc}</td>
+      <td style="color:var(--muted);font-size:12px">${note.slice(0,28)}</td>
+    </tr>`;
+  }).join("") : "<tr><td colspan='6' style='text-align:center;color:var(--muted);padding:20px'>ยังไม่มีรายการ</td></tr>";
 }
 
 // ── Dashboard ─────────────────────────────────────────────────
@@ -732,7 +762,7 @@ function renderDashboard() {
   // Recent transactions
   const recent = [...DB.transactions]
     .sort((a,b) => (b['วันที่']||b.date||'').localeCompare(a['วันที่']||a.date||''))
-    .slice(0, 6);
+    .slice(0, 10);
   document.getElementById("recent-tx").innerHTML = recent.length ? `
     <table class="tbl">
       <tbody>${recent.map(t => {
@@ -754,11 +784,12 @@ function renderDashboard() {
 
 // ── Transactions ───────────────────────────────────────────────
 function renderTx() {
-  const filterMonth = document.getElementById("tx-filter-month").value;
-  const filterType  = document.getElementById("tx-filter-type").value;
+  const filterMonth = document.getElementById("tx-filter-month2")?.value||"";
+  const filterType  = document.getElementById("tx-filter-type2")?.value||"";
   const getAmount = t => +t['จำนวนเงิน (฿)'] || +t['จำนวนเงิน ( )'] || +t['จำนวนเงิน'] || +t.amount || 0;
   const getType   = t => t['ประเภท'] || t.type || '';
-  const getDate   = t => (t['วันที่'] || t.date || '').slice(0,10);
+  const normalizeDate = v => { const s=String(v||''); return s.includes('T')?s.slice(0,10):s.slice(0,10); };
+  const getDate   = t => normalizeDate(t['วันที่'] || t.date || '');
   const getNote   = t => t['รายละเอียด / Note']||t['รายละเอียด']||t.note||'';
   const getCat    = t => t['หมวดหมู่']||t.category_name||'';
   const getAcc    = t => t['บัญชี']||t.account_name||'';
@@ -781,10 +812,13 @@ function renderTx() {
 }
 
 function populateTxFilters() {
-  const getDate = t => t['วันที่'] || t.date || '';
+  const normalizeDate = v => { const s=String(v||''); return s.includes('T')?s.slice(0,10):s.slice(0,10); };
+  const getDate = t => normalizeDate(t['วันที่'] || t.date || '');
   const months = [...new Set(DB.transactions.map(t => getDate(t).slice(0,7)).filter(Boolean))].sort().reverse();
-  const sel = document.getElementById("tx-filter-month");
-  sel.innerHTML = '<option value="">ทุกเดือน</option>' + months.map(m=>`<option value="${m}">${m}</option>`).join('');
+  const sel2 = document.getElementById("tx-filter-month2");
+  if(sel2) sel2.innerHTML = '<option value="">ทุกเดือน</option>' + months.map(m=>`<option value="${m}">${m}</option>`).join('');
+  const selDash = document.getElementById("dash-filter-month");
+  if(selDash) selDash.innerHTML = '<option value="">ทุกเดือน</option>' + months.map(m=>`<option value="${m}">${m}</option>`).join('');
 }
 
 // ── Accounts ──────────────────────────────────────────────────
@@ -1388,12 +1422,28 @@ async function deleteTx(rowIdx) {
 // ════════════════════════════════════════════════════════════════
 function renderBilling() {
   const filter = document.getElementById("billing-filter-card")?.value||"";
-  const fmt = n => n ? '฿'+(+n).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
+  const fmt = n => {
+    const num = parseFloat(n);
+    if (isNaN(num) || n==='' || n===undefined || n===null) return '—';
+    return '฿'+num.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+  };
 
-  // ดึงจาก DB.billing (Billing History sheet)
+  // normalize รอบบิล: ISO timestamp → YYYY-MM
+  const normalizeRob = v => {
+    if (!v) return '';
+    const s = v.toString().trim();
+    // ISO timestamp เช่น 2026-06-01T07:00:00.000Z
+    if (s.includes('T')) return s.slice(0,7);
+    // YYYY-MM-DD → YYYY-MM
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s.slice(0,7);
+    return s;
+  };
+
+  // แถวบัตรจริง (มี รหัสบัตร ขึ้นต้น CARD)
+  const isCardRow = r => r['รหัสบัตร'] && r['รหัสบัตร'].toString().startsWith('CARD');
+
   const data = (DB.billing||[]).filter(r => {
-    const hasData = r['รอบบิล']||r['รหัสบัตร'];
-    if (!hasData) return false;
+    if (!isCardRow(r)) return false;
     if (filter) return r['ชื่อบัตร']===filter || r['รหัสบัตร']===filter;
     return true;
   });
@@ -1401,29 +1451,66 @@ function renderBilling() {
   // populate filter
   const sel = document.getElementById("billing-filter-card");
   if (sel && sel.options.length <= 1) {
-    const cards = [...new Set(DB.billing.map(r=>r['ชื่อบัตร']).filter(Boolean))];
+    const cards = [...new Set((DB.billing||[]).filter(isCardRow).map(r=>r['ชื่อบัตร']).filter(Boolean))];
     cards.forEach(c => { const o=document.createElement("option"); o.value=c; o.textContent=c; sel.appendChild(o); });
   }
 
+  // สร้าง pivot สรุปรายปีจาก data (คำนวณเอง ไม่ดึงจาก Sheet)
+  const yearMap = {};
+  data.forEach(r => {
+    const rob = normalizeRob(r['รอบบิล']);
+    const yr = rob.slice(0,4);
+    if (!yr || isNaN(+yr)) return;
+    if (!yearMap[yr]) yearMap[yr] = {bill:0, paid:0, int:0};
+    yearMap[yr].bill += parseFloat(r['ยอดในใบแจ้งหนี้ (฿)'])||0;
+    yearMap[yr].paid += parseFloat(r['ยอดที่ชำระ (฿)'])||0;
+    yearMap[yr].int  += parseFloat(r['ดอกเบี้ยที่จ่าย (฿)'])||0;
+  });
+
+  // จัดกลุ่มแถวตามปี เพื่อแทรก header แต่ละปี
+  const byYear = {};
+  data.forEach(r => {
+    const yr = normalizeRob(r['รอบบิล']).slice(0,4)||'?';
+    if (!byYear[yr]) byYear[yr] = [];
+    byYear[yr].push(r);
+  });
+
   const tbody = document.getElementById("billing-body");
   if (!tbody) return;
-  tbody.innerHTML = data.map(r => {
-    const paid = r['ชำระเต็ม?']||'';
-    const paidCls = paid.includes('✅')?'badge-green':paid.includes('❌')?'badge-red':'badge-amber';
-    return `<tr>
-      <td style="font-family:var(--mono)">${r['รอบบิล']||''}</td>
-      <td><b>${r['ชื่อบัตร']||r['รหัสบัตร']||''}</b></td>
-      <td class="num">${fmt(r['ยอดในใบแจ้งหนี้ (฿)'])}</td>
-      <td class="num" style="color:var(--green)">${fmt(r['ยอดที่ชำระ (฿)'])}</td>
-      <td style="text-align:center"><span class="badge ${paidCls}">${paid}</span></td>
-      <td class="num" style="color:var(--red)">${fmt(r['ดอกเบี้ยที่จ่าย (฿)'])}</td>
-      <td style="color:var(--muted2)">${r['หมายเหตุ']||''}</td>
-    </tr>`;
-  }).join('')||'<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">ยังไม่มีข้อมูล</td></tr>';
 
-  const totalBill = data.reduce((s,r)=>s+(+r['ยอดในใบแจ้งหนี้ (฿)']||0),0);
-  const totalPaid = data.reduce((s,r)=>s+(+r['ยอดที่ชำระ (฿)']||0),0);
-  const totalInt  = data.reduce((s,r)=>s+(+r['ดอกเบี้ยที่จ่าย (฿)']||0),0);
+  let html = '';
+  Object.keys(byYear).sort().reverse().forEach(yr => {
+    const rows = byYear[yr];
+    const ys = yearMap[yr]||{};
+    // header แถวสรุปปี
+    html += `<tr style="background:var(--bg);font-weight:700;font-size:12px;color:var(--muted)">
+      <td colspan="2" style="padding:6px 12px">📅 สรุปปี ${yr}</td>
+      <td class="num" style="color:var(--text)">${fmt(Math.round(ys.bill*100)/100)}</td>
+      <td class="num" style="color:var(--green)">${fmt(Math.round(ys.paid*100)/100)}</td>
+      <td></td>
+      <td class="num" style="color:${ys.int>0?'var(--red)':'var(--muted)'}">
+        ${ys.int>0?fmt(Math.round(ys.int*100)/100):'฿0.00'}</td>
+      <td></td>
+    </tr>`;
+    rows.forEach(r => {
+      const paid = r['ชำระเต็ม?']||'';
+      const paidCls = paid.includes('✅')?'badge-green':paid.includes('❌')?'badge-red':'badge-amber';
+      html += `<tr>
+        <td style="font-family:var(--mono)">${normalizeRob(r['รอบบิล'])}</td>
+        <td><b>${r['ชื่อบัตร']||r['รหัสบัตร']||''}</b></td>
+        <td class="num">${fmt(r['ยอดในใบแจ้งหนี้ (฿)'])}</td>
+        <td class="num" style="color:var(--green)">${fmt(r['ยอดที่ชำระ (฿)'])}</td>
+        <td style="text-align:center"><span class="badge ${paidCls}">${paid}</span></td>
+        <td class="num" style="color:var(--red)">${fmt(r['ดอกเบี้ยที่จ่าย (฿)'])}</td>
+        <td style="color:var(--muted2)">${r['หมายเหตุ']||''}</td>
+      </tr>`;
+    });
+  });
+  tbody.innerHTML = html || '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">ยังไม่มีข้อมูล</td></tr>';
+
+  const totalBill = Math.round(data.reduce((s,r)=>s+(parseFloat(r['ยอดในใบแจ้งหนี้ (฿)'])||0),0)*100)/100;
+  const totalPaid = Math.round(data.reduce((s,r)=>s+(parseFloat(r['ยอดที่ชำระ (฿)'])||0),0)*100)/100;
+  const totalInt  = Math.round(data.reduce((s,r)=>s+(parseFloat(r['ดอกเบี้ยที่จ่าย (฿)'])||0),0)*100)/100;
   const el = document.getElementById("billing-summary");
   if (el) el.innerHTML = `
     <span>รายการ <b>${data.length}</b></span>
