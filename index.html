@@ -546,23 +546,88 @@ async function fetchSheet(spreadsheetId, sheetName) {
 //  WRITE TO SHEETS via Apps Script Web App URL
 //  (ต้องตั้งค่า Apps Script แยก — ดู instructions ด้านล่าง)
 // ════════════════════════════════════════════════════════════
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyEI4dM3PBOST_mFoOlRXTBHfMdeIuqBeDbKnKjFv5ZdLtl6opkkZRtZfxKOFoWgvKd/exec"; // ใส่ URL ของ Apps Script Web App ที่นี่
+// ══════════════════════════════════════════════════════════════
+//  SECURITY CONFIG — ตั้งค่าก่อนใช้งาน
+//
+//  STEP 1: ใส่ Apps Script URL ด้านล่าง
+//  STEP 2: เปลี่ยน APP_SECRET เป็นรหัสของคุณเอง
+//          (ตัวอักษร+ตัวเลข อย่างน้อย 16 หลัก)
+//  STEP 3: เพิ่มใน Apps Script (doGet function):
+//
+//    function doGet(e) {
+//      const SECRET = "MY_SECRET_TOKEN_2026"; // ← ต้องตรงกัน
+//      if (e.parameter.token !== SECRET) {
+//        if (e.parameter.action !== "read") {  // read ไม่ต้อง token
+//          return ContentService
+//            .createTextOutput(JSON.stringify({status:"unauthorized"}))
+//            .setMimeType(ContentService.MimeType.JSON);
+//        }
+//      }
+//      // ... โค้ดเดิม
+//    }
+//
+// ══════════════════════════════════════════════════════════════
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyEI4dM3PBOST_mFoOlRXTBHfMdeIuqBeDbKnKjFv5ZdLtl6opkkZRtZfxKOFoWgvKd/exec";
+const APP_SECRET = "MY_SECRET_TOKEN_2026"; // ⚠️ เปลี่ยนให้ตรงกับ Apps Script ด้วย
+
+// ── Rate Limiter ──────────────────────────────────────────────
+const _rl = { last: 0, count: 0, MAX: 5, WINDOW: 10000 }; // max 5 calls/10s
+function _checkRateLimit() {
+  const now = Date.now();
+  if (now - _rl.last > _rl.WINDOW) { _rl.count = 0; _rl.last = now; }
+  if (++_rl.count > _rl.MAX) {
+    toast("⚠️ ส่งข้อมูลถี่เกินไป กรุณารอสักครู่", "error");
+    return false;
+  }
+  return true;
+}
+
+// ── Input Sanitizer ───────────────────────────────────────────
+function _sanitize(val) {
+  if (val === null || val === undefined) return '';
+  return String(val).replace(/[<>"'`]/g, '').slice(0, 500);
+}
+
+function _sanitizeRow(row) {
+  return row.map(v => _sanitize(v));
+}
+
+// ── Validate Transaction Fields ───────────────────────────────
+function validateTxFields(date, type, amount) {
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    toast("❌ วันที่ไม่ถูกต้อง (YYYY-MM-DD)", "error"); return false;
+  }
+  if (!['income','expense'].includes(type)) {
+    toast("❌ ประเภทต้องเป็น income หรือ expense", "error"); return false;
+  }
+  const amt = parseFloat(amount);
+  if (isNaN(amt) || amt <= 0 || amt > 10000000) {
+    toast("❌ จำนวนเงินไม่ถูกต้อง (1 – 10,000,000)", "error"); return false;
+  }
+  return true;
+}
 
 async function appendRow(sheetName, spreadsheetId, rowData) {
   if (!APPS_SCRIPT_URL) {
     toast("⚠️ ยังไม่ได้ตั้งค่า Apps Script URL", "error");
     return false;
   }
-  // ใช้ GET แทน POST เพื่อหลีกเลี่ยง CORS preflight
+  if (!_checkRateLimit()) return false;
+
   const params = new URLSearchParams({
     action: "append",
     spreadsheetId,
     sheetName,
-    rowData: JSON.stringify(rowData),
+    rowData: JSON.stringify(_sanitizeRow(rowData)),
+    token: APP_SECRET,
   });
   const resp = await fetch(`${APPS_SCRIPT_URL}?${params}`);
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   const json = await resp.json();
+  if (json.status === "unauthorized") {
+    toast("🔒 ไม่ได้รับอนุญาต — ตรวจสอบ APP_SECRET", "error");
+    return false;
+  }
   return json.status === "ok";
 }
 
@@ -706,7 +771,7 @@ function renderDashTx() {
 
 // ── Dashboard ─────────────────────────────────────────────────
 function renderDashboard() {
-  const totalBank = DB.accounts.reduce((s,a) => s + (+a['ยอดปัจจุบัน (฿)']||+a['ยอดปัจจุบัน']||+a.balance||0), 0);
+  const totalBank = Math.round(DB.accounts.reduce((s,a) => s + calcCurrentBalance(a), 0) * 100) / 100;
   const totalInv  = DB.funds.reduce((s,f) => s + (+f['มูลค่าปัจจุบัน (฿)']||0), 0);
   const totalSav  = DB.savings.reduce((s,v) => s + (+v['มูลค่าหน้าสลาก (฿)']||+v.face_value||0), 0);
   const totalDebt = DB.creditCards.reduce((s,c) => s + (+c['จ่ายรวม/เดือน (฿)'] || 0), 0);
@@ -822,14 +887,37 @@ function populateTxFilters() {
 }
 
 // ── Accounts ──────────────────────────────────────────────────
+function calcCurrentBalance(account) {
+  // Current = Initial + Σincome - Σexpense จาก Transactions ที่ตรงกับบัญชีนี้
+  const bankName = account.bank_name || '';
+  const initial  = parseFloat(account['ยอดเริ่มต้น (฿)'] || account['ยอดเริ่มต้น'] || account.balance || 0);
+
+  const getAmt  = t => parseFloat(t['จำนวนเงิน (฿)'] || t['จำนวนเงิน ( )'] || t['จำนวนเงิน'] || t.amount || 0);
+  const getType = t => t['ประเภท'] || t.type || '';
+  const getAcc  = t => t['บัญชี'] || t['account_name'] || '';
+
+  const txForAcc = DB.transactions.filter(t => getAcc(t) === bankName);
+
+  const income  = txForAcc.filter(t => getType(t) === 'income' ).reduce((s,t) => s + getAmt(t), 0);
+  const expense = txForAcc.filter(t => getType(t) === 'expense').reduce((s,t) => s + getAmt(t), 0);
+
+  return Math.round((initial + income - expense) * 100) / 100;
+}
+
 function renderAccounts() {
-  document.getElementById("acc-body").innerHTML = DB.accounts.map(a => `<tr>
-    <td style="color:var(--muted);font-family:var(--mono)">${a.account_id}</td>
-    <td><b>${a.bank_name}</b></td>
-    <td>${a.account_type||''}</td>
-    <td class="num">${fmt(+a['ยอดเริ่มต้น (฿)']||+a['ยอดเริ่มต้น']||+a.balance||0)}</td>
-    <td class="num" style="color:var(--accent)"><b>${fmt(+a['ยอดปัจจุบัน (฿)']||+a['ยอดปัจจุบัน']||+a.balance||0)}</b></td>
-  </tr>`).join('');
+  document.getElementById("acc-body").innerHTML = DB.accounts.map(a => {
+    const initial = parseFloat(a['ยอดเริ่มต้น (฿)'] || a['ยอดเริ่มต้น'] || a.balance || 0);
+    const current = calcCurrentBalance(a);
+    const diff    = current - initial;
+    const color   = diff >= 0 ? 'var(--green)' : 'var(--red)';
+    return `<tr>
+      <td style="color:var(--muted);font-family:var(--mono)">${a.account_id}</td>
+      <td><b>${a.bank_name}</b></td>
+      <td>${a.account_type||''}</td>
+      <td class="num">${fmt(initial)}</td>
+      <td class="num" style="color:${color}"><b>${fmt(current)}</b></td>
+    </tr>`;
+  }).join('');
 }
 
 // ── Credit Cards ──────────────────────────────────────────────
@@ -1203,15 +1291,31 @@ function closeForm(e) {
 async function submitForm() {
   const def = FORM_DEFS[currentForm];
   if (!def) return;
+  if (!_checkRateLimit()) return;
+
   const vals = {};
   def.fields.forEach(f => {
     const el = document.getElementById(`ff-${f.key}`);
-    vals[f.key] = el ? el.value.trim() : '';
+    vals[f.key] = el ? _sanitize(el.value.trim()) : '';
   });
 
-  // Basic validation
+  // Required field check
   const empty = def.fields.filter(f => !vals[f.key] && f.type !== 'text' && f.key !== 'note' && f.key !== 'source');
   if (empty.length) { toast("กรุณากรอกข้อมูลให้ครบ", "error"); return; }
+
+  // Amount validation (ถ้ามี field amount หรือ total)
+  const amtKey = def.fields.find(f => ['amount','total','ยอด'].some(k => f.key.includes(k)));
+  if (amtKey && vals[amtKey.key]) {
+    const amt = parseFloat(vals[amtKey.key]);
+    if (isNaN(amt) || amt <= 0 || amt > 10000000) {
+      toast("❌ จำนวนเงินไม่ถูกต้อง (1 – 10,000,000)", "error"); return;
+    }
+  }
+
+  // Transaction-specific validation
+  if (currentForm === 'transaction' && vals.date && vals.type && vals.amount) {
+    if (!validateTxFields(vals.date, vals.type, vals.amount)) return;
+  }
 
   const rowData = def.build(vals);
   const ok = await appendRow(def.sheet, def.sid(), rowData);
@@ -1363,18 +1467,20 @@ function editTx(rowIdx) {
 
 async function submitEditTx() {
   if (_editRowIndex === null) return;
+  if (!_checkRateLimit()) return;
+
   const date   = document.getElementById("ff-date")?.value||'';
   const type   = document.getElementById("ff-type")?.value||'';
   const amount = document.getElementById("ff-amount")?.value||'';
   const cat    = document.getElementById("ff-cat")?.value||'';
   const acc    = document.getElementById("ff-acc")?.value||'';
   const note   = document.getElementById("ff-note")?.value||'';
-  const month  = date.slice(0,7);
 
-  // +2 เพราะ Google Sheets row 1=banner, row 2=header, data เริ่มที่ row 3
-  // และ DB.transactions index 0 = row 3
+  if (!validateTxFields(date, type, amount)) return;
+
+  const month    = date.slice(0,7);
   const sheetRow = _editRowIndex + 3;
-  const rowData  = [date, type, amount, cat, '', acc, '', note, 'manual', month];
+  const rowData  = _sanitizeRow([date, type, amount, cat, '', acc, '', note, 'manual', month]);
 
   const params = new URLSearchParams({
     action: "update",
@@ -1382,6 +1488,7 @@ async function submitEditTx() {
     sheetName: "Transactions",
     rowNumber: sheetRow,
     rowData: JSON.stringify(rowData),
+    token: APP_SECRET,
   });
   try {
     const resp = await fetch(`${APPS_SCRIPT_URL}?${params}`);
@@ -1390,6 +1497,8 @@ async function submitEditTx() {
       toast("✅ แก้ไขสำเร็จ", "success");
       closeForm();
       setTimeout(loadAll, 1200);
+    } else if (json.status === "unauthorized") {
+      toast("🔒 ไม่ได้รับอนุญาต — ตรวจสอบ APP_SECRET", "error");
     } else {
       toast("❌ " + (json.msg||"Error"), "error");
     }
@@ -1398,12 +1507,15 @@ async function submitEditTx() {
 
 async function deleteTx(rowIdx) {
   if (!confirm("ลบรายการนี้?")) return;
+  if (!_checkRateLimit()) return;
+
   const sheetRow = rowIdx + 3;
   const params = new URLSearchParams({
     action: "delete",
     spreadsheetId: IDS.tx,
     sheetName: "Transactions",
     rowNumber: sheetRow,
+    token: APP_SECRET,
   });
   try {
     const resp = await fetch(`${APPS_SCRIPT_URL}?${params}`);
@@ -1411,6 +1523,8 @@ async function deleteTx(rowIdx) {
     if (json.status === "ok") {
       toast("🗑 ลบรายการแล้ว", "success");
       setTimeout(loadAll, 1200);
+    } else if (json.status === "unauthorized") {
+      toast("🔒 ไม่ได้รับอนุญาต — ตรวจสอบ APP_SECRET", "error");
     } else {
       toast("❌ " + (json.msg||"Error"), "error");
     }
@@ -1556,15 +1670,51 @@ function buildCalendar(year, month) {
     events[d].push({card, type, amount, color});
   };
 
+  // รวบรวมวันชำระทุกบัตร:
+  // - ถ้า dueDay < stmtDay → due อยู่เดือนถัดจาก stmt
+  //   เช่น stmt=12, due=1 → ตัดรอบเดือนนี้ (month), ชำระเดือนถัดไป (month+1)
+  //   แต่ calendar month นี้จะเห็น due ที่มาจาก stmt เดือน (month-1)
+  // - ถ้า dueDay >= stmtDay → due อยู่เดือนเดียวกับ stmt
+  //   เช่น stmt=12, due=22 → ตัดรอบและชำระเดือนเดียวกัน
+
+  // prevMonth stmt → due ในเดือนนี้ (due < stmt case)
+  // thisMonth stmt → due ในเดือนนี้ (due >= stmt case)
+
   DB.creditCards.forEach(c => {
-    const name = c['ชื่อบัตร']||'';
-    const stmt = c['วันตัดรอบ']||'';
-    const due  = c['วันครบกำหนด']||'';
-    const tot  = +c['จ่ายรวม/เดือน (฿)']||0;
-    // parse "ทุกวันที่ N" หรือแค่ตัวเลข
+    const name    = c['ชื่อบัตร']||'';
+    const stmtStr = c['วันตัดรอบ']||'';
+    const dueStr  = c['วันครบกำหนด']||'';
+    const tot     = +c['จ่ายรวม/เดือน (฿)']||0;
     const parseDay = s => { const m = String(s).match(/\d+/); return m ? +m[0] : null; };
-    addEvent(parseDay(stmt), name, 'ตัดรอบ', 0, 'var(--amber)');
-    if (tot > 0) addEvent(parseDay(due), name, 'ชำระ', tot, 'var(--red)');
+
+    const stmtDay = parseDay(stmtStr);
+    const dueDay  = parseDay(dueStr);
+
+    // ✂️ ตัดรอบ: แสดงในเดือนนี้เสมอ
+    addEvent(stmtDay, name, 'ตัดรอบ', 0, 'var(--amber)');
+
+    // 💳 ชำระ: ดึงยอดจาก Billing History ของรอบที่ตรงกัน
+    if (dueDay && stmtDay) {
+      // หารอบบิลที่ due ในเดือนนี้:
+      // - dueDay < stmtDay → stmt ตัดเดือนที่แล้ว (month-1) → due เดือนนี้
+      // - dueDay >= stmtDay → stmt ตัดเดือนนี้ → due เดือนนี้
+      const billingMonth = dueDay < stmtDay
+        ? (month === 1 ? 12 : month - 1)   // stmt เดือนที่แล้ว
+        : month;                             // stmt เดือนนี้
+      const billingYear = dueDay < stmtDay && month === 1 ? year - 1 : year;
+      const robKey = `${billingYear}-${String(billingMonth).padStart(2,'0')}`;
+
+      // หายอดจาก DB.billing ของรอบนั้น
+      const normalizeRob = v => { const s=String(v||''); return s.includes('T')?s.slice(0,7):s.slice(0,7); };
+      const billRow = (DB.billing||[]).find(r =>
+        r['ชื่อบัตร'] === name && normalizeRob(r['รอบบิล']) === robKey
+      );
+      const billAmt = billRow ? parseFloat(billRow['ยอดในใบแจ้งหนี้ (฿)'])||0 : tot;
+
+      if (billAmt > 0 || tot > 0) {
+        addEvent(dueDay, name, 'ชำระ', billAmt || tot, 'var(--red)');
+      }
+    }
   });
 
   // สร้าง calendar grid
@@ -1738,7 +1888,7 @@ function buildBarChart(mode, selectedMonth) {
 
 
 function buildDonutChart() {
-  const bank = DB.accounts.reduce((s,a)=>s+(+a['ยอดปัจจุบัน (฿)']||+a.balance||0),0);
+  const bank = Math.round(DB.accounts.reduce((s,a)=>s+calcCurrentBalance(a),0)*100)/100;
   const inv  = DB.funds.reduce((s,f)=>s+(+f['มูลค่าปัจจุบัน (฿)']||0),0);
   const sav  = DB.savings.reduce((s,v)=>s+(+v['มูลค่าหน้าสลาก (฿)']||+v.face_value||0),0);
   const total = bank+inv+sav;
