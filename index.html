@@ -529,18 +529,31 @@ async function fetchSheet(spreadsheetId, sheetName) {
   if (json.status !== "ok") throw new Error(json.msg || "Apps Script error");
   const rows = json.data;
   if (!rows || rows.length < 2) return [];
-  // ถ้า row 0 เป็น banner (col 1 ยาว + col 2 ว่าง) ให้ใช้ row 1 เป็น header แทน
-  const isBanner = rows[0] && String(rows[0][0]||"").length > 20 && !String(rows[0][1]||"").trim();
-  const headerRow = isBanner ? 1 : 0;
-  const dataStart = isBanner ? 2 : 1;
+
+  // Determine header row:
+  // Case A: row0 all empty → row1 = header, data starts row2
+  // Case B: row0 col0 is blank/spaces, col1+ has field names → row0 = header, data starts row1
+  // Case C: row0 is true banner (long text col0, col1 empty) → row1 = header, data starts row2
+  // Case D: normal → row0 = header, data starts row1
+  const isAllEmpty = r => !r || r.every(c => !String(c || "").trim());
+  const row0 = rows[0] || [];
+  const trim0 = String(row0[0] || "").trim();
+  const trim1 = String(row0[1] || "").trim();
+  const isEmptyFirstRow  = isAllEmpty(row0);                      // Case A
+  const isTrueBanner     = trim0.length > 20 && !trim1;           // Case C
+  const skipRow0         = isEmptyFirstRow || isTrueBanner;
+  const headerRow        = skipRow0 ? 1 : 0;
+  const dataStart        = skipRow0 ? 2 : 1;
+
   if (rows.length <= headerRow) return [];
-  const headers = rows[headerRow].map(h => String(h||"").trim());
+  const headers = rows[headerRow].map((h, i) => String(h || "").trim() || `_col${i}`);
   return rows.slice(dataStart).map(row => {
     const obj = {};
     headers.forEach((h, i) => obj[h] = String(row[i] ?? "").trim());
     return obj;
   }).filter(r => Object.values(r).some(v => v));
 }
+
 
 // ════════════════════════════════════════════════════════════
 //  WRITE TO SHEETS via Apps Script Web App URL
@@ -679,6 +692,19 @@ async function loadAll() {
     ]);
 
     DB.transactions = txData;
+    // Normalize col0: many sheets have blank col0 header → stored as _col0
+    // Remap _col0 to the correct ID field name for each sheet
+    const remapCol0 = (arr, idField) => arr.forEach(r => { if (!r[idField] && r._col0) r[idField] = r._col0; });
+
+    remapCol0(accData,   'account_id');
+    remapCol0(catData,   'category_id');
+    remapCol0(ccData,    'รหัส');
+    remapCol0(instData,  'รหัส');
+    remapCol0(recData,   'รหัส');
+    remapCol0(fundsData, 'รหัส');
+    remapCol0(savData,   'รหัส');
+    remapCol0(billingData, 'รหัสบัตร');
+
     DB.accounts     = accData.filter(r => r.account_id && String(r.account_id).startsWith("ACC"));
     DB.categories   = catData.filter(r => r.category_id && r.category_id.startsWith("CAT"));
     DB.creditCards  = ccData.filter(r => r['รหัส'] && r['รหัส'].startsWith("CARD"));
@@ -710,7 +736,8 @@ const fmtN = n => Number(n) ? Number(n).toLocaleString('th-TH', {minimumFraction
 function renderAll() {
   renderDashboard();
   setTimeout(() => { populateMonthPicker(); buildBarChart('month'); buildDonutChart(); }, 400);
-  renderTx();
+  populateTxFilters();
+  renderTx2();
   renderAccounts();
   renderCreditCards();
   renderInstallments();
@@ -720,15 +747,9 @@ function renderAll() {
   renderBilling();
   renderPaymentCalendar();
   populateTxFilters();
-  // populate dashboard month filter + render dash tx
   setTimeout(() => {
     renderDashCC();
-    const getDate = t => t['วันที่']||t.date||'';
-    const months = [...new Set(DB.transactions.map(t=>getDate(t).slice(0,7)).filter(Boolean))].sort().reverse();
-    const sel = document.getElementById("dash-filter-month");
-    if(sel) sel.innerHTML = '<option value="">ทุกเดือน</option>'+months.map(m=>`<option value="${m}">${m}</option>`).join('');
     renderDashTx();
-    renderTx2();
   }, 100);
 }
 
